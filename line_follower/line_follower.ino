@@ -15,7 +15,7 @@
 #define HIGH_SPEED 200    
 #define LOW_SPEED 50    
 #define LONG_DELAY_TIME 70 
-#define DELAY_TIME 40 
+#define DELAY_TIME 41
 #define SHORT_DELAY_TIME 30 
          
 #define speedPinR 9   //  Front Wheel PWM pin connect Model-Y M_B ENA 
