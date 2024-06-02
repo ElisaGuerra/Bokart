@@ -11,8 +11,8 @@
  *  
  * 
  */
-#define MID_SPEED 100    
-#define HIGH_SPEED 200    
+#define MID_SPEED 80    
+#define HIGH_SPEED 170    
 #define LOW_SPEED 50    
 #define LONG_DELAY_TIME 70 
 #define DELAY_TIME 41
@@ -187,7 +187,7 @@ void tracking()
   
   Serial.print(senstr);
   Serial.print("\t");
-  if ( senstr=="01100" || senstr=="00110" || senstr=="01110" || senstr=="00100" || senstr=="11110" || senstr=="01111" || senstr=="11111") //Forward
+  if ( senstr=="01100" || senstr=="00110" || senstr=="01110" || senstr=="00100" || senstr=="00010" || senstr=="01000" || senstr=="11110" || senstr=="01111" || senstr=="11111") //Forward
   {
     forward(HIGH_SPEED,HIGH_SPEED);
     delay(DELAY_TIME);
@@ -200,6 +200,11 @@ void tracking()
   if ( senstr=="00111" || senstr=="00011" || senstr=="00001") //Right turn
   {
     right_turn(HIGH_SPEED,LOW_SPEED);
+    delay(DELAY_TIME);
+  }
+  if ( senstr=="00000" || senstr=="10001" || senstr=="11011" || senstr=="10011" || senstr=="11001" || senstr=="11101" || senstr=="10111")
+  {
+    reverse(MID_SPEED);
     delay(DELAY_TIME);
   }
   else
