@@ -11,12 +11,14 @@
  *  
  * 
  */
-#define MID_SPEED 80    
-#define HIGH_SPEED 170    
-#define LOW_SPEED 50    
+#define MID_SPEED 100    
+#define HIGH_SPEED 200    
+#define LOW_SPEED 80    
 #define LONG_DELAY_TIME 70 
-#define DELAY_TIME 41
-#define SHORT_DELAY_TIME 30 
+#define DELAY_TIME 40
+#define SHORT_DELAY_TIME 10 
+#define DISTANCE_FRONT 10 // Distance before stopping (in cm)
+#define DISTANCE_SIDE 10 // Distance from objects to sides
          
 #define speedPinR 9   //  Front Wheel PWM pin connect Model-Y M_B ENA 
 #define rightMotorDirPin1  22    //Front Right Motor direction pin 1 to Model-Y M_B IN1  (K1)
@@ -34,92 +36,112 @@
 
 #define sensor1   A4 // Left most sensor
 #define sensor2   A3 // 2nd Left   sensor
-#define sensor3   A2 // center sensor
+#define sensor3   A2 // Center sensor
 #define sensor4   A1 // 2nd right sensor// Right most sensor
 #define sensor5   A0 // Right most sensor
+/*#define sensorRight 32 //Front sensor
+#define sensorLeft 30 //Front sensor*/
 
-/*motor control*/
-void FR_fwd(int speed)  //front-right wheel forward turn
-{
+#define triggerPinF 34 // Trigger for front ultrasonic sensor 
+#define echoPinF 21 // Echo for front ultrasonic sensor, this is an interrupt pin
+#define triggerPinL 10 // Trigger for left ultrasonic sensor //Revisar el pin 
+#define echoPinL 20 // Echo for left ultrasonic sensor, this is an interrupt pin
+#define triggerPinR 11 // Trigger for right ultrasonic sensor //Revisar el pin 
+#define echoPinR 19 // Echo for right ultrasonic sensor, this is an interrupt pin
+
+#define buzzerPin 40 // REVISAR PINES
+#define ledR1 1
+#define ledR2 1
+#define ledR3 1
+#define ledL1 1
+#define ledL2 1
+#define ledL3 1
+
+long durationF; // Duration measured by front sensor
+bool objectDetectedF = false; // Front object detection flag
+long durationL; // Duration measured by left sensor
+bool objectDetectedL = false; // Left object detection flag
+long durationR; // Duration measured by right sensor
+bool objectDetectedR = false; // Right object detection flag
+int led=0; //For led sequence
+long distance=0;
+
+
+//Motor control functions
+void FR_fwd(int speed){  //front-right wheel forward turn
   digitalWrite(rightMotorDirPin1,HIGH);
   digitalWrite(rightMotorDirPin2,LOW); 
   analogWrite(speedPinR,speed);
 }
-void FR_bck(int speed) // front-right wheel backward turn
-{
+void FR_bck(int speed){ // front-right wheel backward turn
   digitalWrite(rightMotorDirPin1,LOW);
   digitalWrite(rightMotorDirPin2,HIGH); 
   analogWrite(speedPinR,speed);
 }
-void FL_fwd(int speed) // front-left wheel forward turn
-{
+void FL_fwd(int speed){ // front-left wheel forward turn
   digitalWrite(leftMotorDirPin1,HIGH);
   digitalWrite(leftMotorDirPin2,LOW);
   analogWrite(speedPinL,speed);
 }
-void FL_bck(int speed) // front-left wheel backward turn
-{
+void FL_bck(int speed){ // front-left wheel backward turn
   digitalWrite(leftMotorDirPin1,LOW);
   digitalWrite(leftMotorDirPin2,HIGH);
   analogWrite(speedPinL,speed);
 }
 
-void RR_fwd(int speed)  //rear-right wheel forward turn
-{
+void RR_fwd(int speed){  //rear-right wheel forward turn
   digitalWrite(rightMotorDirPin1B, LOW);
   digitalWrite(rightMotorDirPin2B,HIGH); 
   analogWrite(speedPinRB,speed);
 }
-void RR_bck(int speed)  //rear-right wheel backward turn
-{
+void RR_bck(int speed){  //rear-right wheel backward turn
   digitalWrite(rightMotorDirPin1B, HIGH);
   digitalWrite(rightMotorDirPin2B,LOW); 
   analogWrite(speedPinRB,speed);
 }
-void RL_fwd(int speed)  //rear-left wheel forward turn
-{
+void RL_fwd(int speed){  //rear-left wheel forward turn
   digitalWrite(leftMotorDirPin1B,LOW);
   digitalWrite(leftMotorDirPin2B,HIGH);
   analogWrite(speedPinLB,speed);
 }
-void RL_bck(int speed)    //rear-left wheel backward turn
-{
+void RL_bck(int speed){    //rear-left wheel backward turn
   digitalWrite(leftMotorDirPin1B,HIGH);
   digitalWrite(leftMotorDirPin2B,LOW);
   analogWrite(speedPinLB,speed);
 }
+
 //Movement functions
-void forward(int speed_left,int speed_right)
-{
+void forward(int speed_left,int speed_right){
    RL_fwd(speed_left);
    RR_fwd(speed_right);
    FR_fwd(speed_right);
    FL_fwd(speed_left); 
 }
-void right_turn(int speed_left,int speed_right)
-{
+void right_turn(int speed_left,int speed_right){
    RL_fwd(speed_left);
    RR_bck(speed_right);
    FR_bck(speed_right);
    FL_fwd(speed_left);
 }
-void left_turn(int speed_left,int speed_right)
-{
+void left_turn(int speed_left,int speed_right){
    RL_bck(speed_left);
    RR_fwd(speed_right);
    FR_fwd(speed_right);
    FL_bck(speed_left);
 }
-void reverse(int speed)
-{
+void reverse(int speed){
    RL_bck(speed);
    RR_bck(speed);
    FR_bck(speed);
    FL_bck(speed); 
 }
-
-void stop_bot()    //Stop
-{
+void right(int speed){
+   RL_fwd(speed);
+   RR_bck(0);
+   FR_bck(0);
+   FL_fwd(speed); 
+}
+void stop_bot(){    //Stop
   analogWrite(speedPinLB,0);
   analogWrite(speedPinRB,0);
   analogWrite(speedPinL,0);
@@ -132,13 +154,12 @@ void stop_bot()    //Stop
   digitalWrite(rightMotorDirPin2,LOW);   
   digitalWrite(leftMotorDirPin1, LOW);
   digitalWrite(leftMotorDirPin2,LOW); 
-  delay(40);
+  delay(DELAY_TIME);
 }
 
 
 //Pins initialize
-void init_GPIO()
-{
+void init_GPIO(){
   pinMode(rightMotorDirPin1, OUTPUT); 
   pinMode(rightMotorDirPin2, OUTPUT); 
   pinMode(speedPinL, OUTPUT);  
@@ -158,64 +179,202 @@ void init_GPIO()
   pinMode(sensor3, INPUT);
   pinMode(sensor4, INPUT);
   pinMode(sensor5, INPUT);
+
+  pinMode(triggerPinF, OUTPUT);
+  pinMode(echoPinF, INPUT);
+  pinMode(triggerPinL, OUTPUT);
+  pinMode(echoPinL, INPUT);
+  pinMode(triggerPinR, OUTPUT);
+  pinMode(echoPinR, INPUT);
+
+  pinMode(buzzerPin,OUTPUT);
+  pinMode(ledR1,OUTPUT);
+  pinMode(ledR2,OUTPUT);
+  pinMode(ledR3,OUTPUT);
+  pinMode(ledL1,OUTPUT);
+  pinMode(ledL2,OUTPUT);
+  pinMode(ledL3,OUTPUT);
   
   stop_bot();
 }
 
-void setup()
-{
+void setup(){
   init_GPIO();
+  attachInterrupt(digitalPinToInterrupt(echoPinF), echoFront, CHANGE); //Interrupt setup for front ultrasonic sensor
+  //attachInterrupt(digitalPinToInterrupt(echoPinL), echoLeft, CHANGE); //Interrupt setup for left ultrasonic sensor
+  //attachInterrupt(digitalPinToInterrupt(echoPinR), echoRight, CHANGE); //Interrupt setup for right ultrasonic sensor
   Serial.begin(9600);
 }
 
 void loop(){
-  tracking();
+  // Start front ultrasonic sensor lecture
+  digitalWrite(triggerPinF, LOW);
+  delayMicroseconds(2);
+  digitalWrite(triggerPinF, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(triggerPinF, LOW);
+  delayMicroseconds(50);
+//  // Start left ultrasonic sensor lecture
+//  digitalWrite(triggerPinL, LOW);
+//  delayMicroseconds(2);
+//  digitalWrite(triggerPinL, HIGH);
+//  delayMicroseconds(10);
+//  digitalWrite(triggerPinL, LOW);
+//  delayMicroseconds(50);
+//  // Start right ultrasonic sensor lecture
+//  digitalWrite(triggerPinR, LOW);
+//  delayMicroseconds(2);
+//  digitalWrite(triggerPinR, HIGH);
+//  delayMicroseconds(10);
+//  digitalWrite(triggerPinR, LOW);
+//  delayMicroseconds(50);
+// 
+  // Check object detection flag
+  if (!objectDetectedF) {
+//    if(objectDetectedR){
+//      tone(buzzerPin, 1000); // 1kHz sound signal
+//      led=1;
+//      rightLights();
+//    }
+//    else if(objectDetectedL){
+//      tone(buzzerPin, 1000); // 1kHz sound signal
+//      led=1;
+//      leftLights();
+//    }
+//    else{
+//      digitalWrite(ledR1,LOW);
+//      digitalWrite(ledR2,LOW);
+//      digitalWrite(ledR3,LOW);
+//      digitalWrite(ledL1,LOW);
+//      digitalWrite(ledL2,LOW);
+//      digitalWrite(ledL3,LOW);
+//      noTone(buzzerPin);
+//    }
+    tracking();
+  } 
+  else {
+    stop_bot();
+  }
+  delay(DELAY_TIME);//Revisar si no afecta pwm
 }
 
-void tracking()
-{
+void tracking(){
   String senstr="";
   int s0 = !digitalRead(sensor1);
   int s1 = !digitalRead(sensor2);
   int s2 = !digitalRead(sensor3);
   int s3 = !digitalRead(sensor4);
   int s4 = !digitalRead(sensor5);
+  /*int sR = !digitalRead(sensorRight);
+  int sL = !digitalRead(sensorLeft);*/
   int sensorvalue=32;
   sensorvalue +=s0*16+s1*8+s2*4+s3*2+s4;
   senstr= String(sensorvalue,BIN);
   senstr=senstr.substring(1,6);
   
-  Serial.print(senstr);
-  Serial.print("\t");
-  if ( senstr=="01100" || senstr=="00110" || senstr=="01110" || senstr=="00100" || senstr=="00010" || senstr=="01000" || senstr=="11110" || senstr=="01111" || senstr=="11111") //Forward
-  {
+  if ( senstr=="01100" || senstr=="00110" || senstr=="01110" || senstr=="00100" || senstr=="00010" || senstr=="01000" || senstr=="11110" || senstr=="01111" || senstr=="11111"){ //Forward
     forward(HIGH_SPEED,HIGH_SPEED);
     delay(DELAY_TIME);
   }
-  if ( senstr=="11100" || senstr=="11000" || senstr=="10000") //Left turn
-  {
+  if ( senstr=="11100" || senstr=="11000" || senstr=="10000"){ //Left turn
     left_turn(LOW_SPEED,HIGH_SPEED);
     delay(DELAY_TIME);
   }
-  if ( senstr=="00111" || senstr=="00011" || senstr=="00001") //Right turn
-  {
+  if ( senstr=="00111" || senstr=="00011" || senstr=="00001"){ //Right turn
     right_turn(HIGH_SPEED,LOW_SPEED);
     delay(DELAY_TIME);
   }
-  if ( senstr=="00000" || senstr=="10001" || senstr=="11011" || senstr=="10011" || senstr=="11001" || senstr=="11101" || senstr=="10111")
-  {
+  if ( senstr=="00000" || senstr=="10001" || senstr=="11011" || senstr=="10011" || senstr=="11001" || senstr=="11101" || senstr=="10111"){//Reverse
     reverse(MID_SPEED);
     delay(DELAY_TIME);
   }
-  else
-  {
+  else{
     stop_bot();
   }
-
-
-//  if ( senstr=="11111") //Stop
-//  {
-//    stop_bot();
-//    delay(DELAY_TIME);
-//  }
+}
+void rightLights(){
+  if(led==1){
+    digitalWrite(ledR1,HIGH);
+    led=0;
+  }
+  else if(led==2){
+    digitalWrite(ledR2,HIGH);
+    led=3;
+  }
+  else if(led==3){
+    digitalWrite(ledR3,HIGH);
+    led=0;
+  }
+  else if (led==0){
+    digitalWrite(ledR1,LOW);
+    digitalWrite(ledR2,LOW);
+    digitalWrite(ledR3,LOW);
+  }
+  delay(SHORT_DELAY_TIME);
+}
+void leftLights(){
+  if(led==1){
+    digitalWrite(ledL1,HIGH);
+    led=0;
+  }
+  else if(led==2){
+    digitalWrite(ledL2,HIGH);
+    led=3;
+  }
+  else if(led==3){
+    digitalWrite(ledL3,HIGH);
+    led=0;
+  }
+  else if (led==0){
+    digitalWrite(ledL1,LOW);
+    digitalWrite(ledL2,LOW);
+    digitalWrite(ledL3,LOW);
+  }
+  delay(SHORT_DELAY_TIME);
+}
+void echoFront() { // Interrupt function for front ultrasonic sensor
+  if (digitalRead(echoPinF) == HIGH) {
+    durationF = micros();
+  } 
+  else {
+    durationF = micros() - durationF;
+    distance = durationF * 0.0343 / 2;
+    if (distance < DISTANCE_FRONT) {
+      objectDetectedF = true;
+    } 
+    else {
+      objectDetectedF = false;
+    }
+  }
+}
+void echoLeft() { // Interrupt function for left ultrasonic sensor
+  if (digitalRead(echoPinL) == HIGH) {
+    durationL = micros();
+  } 
+  else {
+    durationL = micros() - durationL;
+    long distance = durationL * 0.0343 / 2;
+    if (distance < DISTANCE_SIDE) {
+      objectDetectedL = true;
+    } 
+    else {
+      objectDetectedL = false;
+    }
+  }
+}
+void echoRight() { // Interrupt function for right ultrasonic sensor
+  if (digitalRead(echoPinR) == HIGH) {
+    durationR = micros();
+  } 
+  else {
+    durationR = micros() - durationR;
+    long distance = durationR * 0.0343 / 2;
+    if (distance < DISTANCE_SIDE) {
+      objectDetectedR = true;
+    } 
+    else {
+      objectDetectedR = false;
+    }
+    //Serial.println(distance);
+  }
 }
