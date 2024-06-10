@@ -20,27 +20,25 @@
 #define DISTANCE_FRONT 10 // Distance before stopping (in cm)
 #define DISTANCE_SIDE 10 // Distance from objects to sides
          
-#define speedPinR 9   //  Front Wheel PWM pin connect Model-Y M_B ENA 
-#define rightMotorDirPin1  22    //Front Right Motor direction pin 1 to Model-Y M_B IN1  (K1)
-#define rightMotorDirPin2  24   //Front Right Motor direction pin 2 to Model-Y M_B IN2   (K1)                                 
-#define leftMotorDirPin1  26    //Front Left Motor direction pin 1 to Model-Y M_B IN3 (K3)
-#define leftMotorDirPin2  28   //Front Left Motor direction pin 2 to Model-Y M_B IN4 (K3)
-#define speedPinL 10   //  Front Wheel PWM pin connect Model-Y M_B ENB
+#define speedPinR 11 //9   //  Front Wheel PWM pin connect Model-Y M_B ENA 
+#define rightMotorDirPin1  5 //22    //Front Right Motor direction pin 1 to Model-Y M_B IN1  (K1) Izquierda atras
+#define rightMotorDirPin2  6 //24   //Front Right Motor direction pin 2 to Model-Y M_B IN2   (K1)                                 
+#define leftMotorDirPin1  7//26    //Front Left Motor direction pin 1 to Model-Y M_B IN3 (K3) derecha atras
+#define leftMotorDirPin2  8//28   //Front Left Motor direction pin 2 to Model-Y M_B IN4 (K3)
+#define speedPinL 12//10   //  Front Wheel PWM pin connect Model-Y M_B ENB
 
-#define speedPinRB 12   //  Rear Wheel PWM pin connect Left Model-Y M_A ENA 
-#define rightMotorDirPin1B  7    //Rear Right Motor direction pin 1 to Model-Y M_A IN1 ( K1)
-#define rightMotorDirPin2B 8    //Rear Right Motor direction pin 2 to Model-Y M_A IN2 ( K1) 
-#define leftMotorDirPin1B 5    //Rear Left Motor direction pin 1 to Model-Y M_A IN3  (K3)
-#define leftMotorDirPin2B 6  //Rear Left Motor direction pin 2 to Model-Y M_A IN4 (K3)
-#define speedPinLB 11    //  Rear Wheel PWM pin connect Model-Y M_A ENB
+#define speedPinRB 9//12   //  Rear Wheel PWM pin connect Left Model-Y M_A ENA 
+#define rightMotorDirPin1B  22//7    //Rear Right Motor direction pin 1 to Model-Y M_A IN1 ( K1) izquierda adelante
+#define rightMotorDirPin2B 24//8    //Rear Right Motor direction pin 2 to Model-Y M_A IN2 ( K1) 
+#define leftMotorDirPin1B 26 //5    //Rear Left Motor direction pin 1 to Model-Y M_A IN3  (K3) Derecha adelante
+#define leftMotorDirPin2B 28 //6  //Rear Left Motor direction pin 2 to Model-Y M_A IN4 (K3)
+#define speedPinLB 10 //11    //  Rear Wheel PWM pin connect Model-Y M_A ENB
 
 #define sensor1   A4 // Left most sensor
 #define sensor2   A3 // 2nd Left   sensor
 #define sensor3   A2 // Center sensor
 #define sensor4   A1 // 2nd right sensor// Right most sensor
 #define sensor5   A0 // Right most sensor
-/*#define sensorRight 32 //Front sensor
-#define sensorLeft 30 //Front sensor*/
 
 #define triggerPinF 34 // Trigger for front ultrasonic sensor 
 #define echoPinF 21 // Echo for front ultrasonic sensor, this is an interrupt pin
@@ -59,13 +57,20 @@
 
 long durationF; // Duration measured by front sensor
 bool objectDetectedF = false; // Front object detection flag
+long distanceF=0; // Front distance of an object
 long durationL; // Duration measured by left sensor
 bool objectDetectedL = false; // Left object detection flag
 long durationR; // Duration measured by right sensor
 bool objectDetectedR = false; // Right object detection flag
-int led=0; //For led sequence
-long distance=0;
+int led=0; //Manage led sequence
 
+float Kp = 220.0; //Incrementar si el robot es lento para corregir su trayectoria
+float Ki = 0.3; //Incrementar si el robot tiene un error constante al seguir la línea
+float Kd = 100.0; //Incrementar si el robot oscila demasiado
+float lastError = 0.0;
+float integral = 0.0;
+int baseSpeed = 120;
+int maxSpeed = 230;
 
 //Motor control functions
 void FR_fwd(int speed){  //front-right wheel forward turn
@@ -90,23 +95,23 @@ void FL_bck(int speed){ // front-left wheel backward turn
 }
 
 void RR_fwd(int speed){  //rear-right wheel forward turn
-  digitalWrite(rightMotorDirPin1B, LOW);
-  digitalWrite(rightMotorDirPin2B,HIGH); 
-  analogWrite(speedPinRB,speed);
-}
-void RR_bck(int speed){  //rear-right wheel backward turn
   digitalWrite(rightMotorDirPin1B, HIGH);
   digitalWrite(rightMotorDirPin2B,LOW); 
   analogWrite(speedPinRB,speed);
 }
+void RR_bck(int speed){  //rear-right wheel backward turn
+  digitalWrite(rightMotorDirPin1B, LOW);
+  digitalWrite(rightMotorDirPin2B,HIGH); 
+  analogWrite(speedPinRB,speed);
+}
 void RL_fwd(int speed){  //rear-left wheel forward turn
-  digitalWrite(leftMotorDirPin1B,LOW);
-  digitalWrite(leftMotorDirPin2B,HIGH);
+  digitalWrite(leftMotorDirPin1B,HIGH);
+  digitalWrite(leftMotorDirPin2B,LOW);
   analogWrite(speedPinLB,speed);
 }
 void RL_bck(int speed){    //rear-left wheel backward turn
-  digitalWrite(leftMotorDirPin1B,HIGH);
-  digitalWrite(leftMotorDirPin2B,LOW);
+  digitalWrite(leftMotorDirPin1B,LOW);
+  digitalWrite(leftMotorDirPin2B,HIGH);
   analogWrite(speedPinLB,speed);
 }
 
@@ -167,6 +172,7 @@ void init_GPIO(){
   pinMode(leftMotorDirPin1, OUTPUT);
   pinMode(leftMotorDirPin2, OUTPUT); 
   pinMode(speedPinR, OUTPUT);
+  
   pinMode(rightMotorDirPin1B, OUTPUT); 
   pinMode(rightMotorDirPin2B, OUTPUT); 
   pinMode(speedPinLB, OUTPUT);  
@@ -174,6 +180,7 @@ void init_GPIO(){
   pinMode(leftMotorDirPin1B, OUTPUT);
   pinMode(leftMotorDirPin2B, OUTPUT); 
   pinMode(speedPinRB, OUTPUT);
+  
   pinMode(sensor1, INPUT);
   pinMode(sensor2, INPUT);
   pinMode(sensor3, INPUT);
@@ -250,7 +257,8 @@ void loop(){
 //      digitalWrite(ledL3,LOW);
 //      noTone(buzzerPin);
 //    }
-    tracking();
+    //tracking();
+    control(); //USANDO ESTA FUNCIÓN YA NO SE NECESITAN LAS FUNCIONES DE MOVIMIENTO
   } 
   else {
     stop_bot();
@@ -265,8 +273,7 @@ void tracking(){
   int s2 = !digitalRead(sensor3);
   int s3 = !digitalRead(sensor4);
   int s4 = !digitalRead(sensor5);
-  /*int sR = !digitalRead(sensorRight);
-  int sL = !digitalRead(sensorLeft);*/
+
   int sensorvalue=32;
   sensorvalue +=s0*16+s1*8+s2*4+s3*2+s4;
   senstr= String(sensorvalue,BIN);
@@ -338,8 +345,8 @@ void echoFront() { // Interrupt function for front ultrasonic sensor
   } 
   else {
     durationF = micros() - durationF;
-    distance = durationF * 0.0343 / 2;
-    if (distance < DISTANCE_FRONT) {
+    distanceF = durationF * 0.0343 / 2;
+    if (distanceF < DISTANCE_FRONT) {
       objectDetectedF = true;
     } 
     else {
@@ -376,5 +383,61 @@ void echoRight() { // Interrupt function for right ultrasonic sensor
       objectDetectedR = false;
     }
     //Serial.println(distance);
+  }
+}
+void control(){
+  int s0 = !digitalRead(sensor1);
+  int s1 = !digitalRead(sensor2);
+  int s2 = !digitalRead(sensor3);
+  int s3 = !digitalRead(sensor4);
+  int s4 = !digitalRead(sensor5);
+  
+  if( s0==1 && s1==1 && s2==1 && s3==1 && s4==1){ //Cross-line handle
+    RL_fwd(baseSpeed);
+    RR_fwd(baseSpeed);
+    FR_fwd(baseSpeed);
+    FL_fwd(baseSpeed); 
+  }
+  else if( s0==0 && s1==0 && s2==0 && s3==0 && s4==0){//No line handle
+    RL_bck(baseSpeed);
+    RR_bck(baseSpeed);
+    FR_bck(baseSpeed);
+    FL_bck(baseSpeed); 
+  }
+  else{
+    float error = (s0*-4 + s1*-2 + s2*0 + s3*2 + s4*4);
+    integral += error;
+    float derivative = error - lastError;
+    float output = Kp * error + Ki * integral + Kd * derivative;
+    lastError = error;
+    int leftSpeed = constrain(baseSpeed - output, 0, maxSpeed);
+    int rightSpeed = constrain(baseSpeed + output, 0, maxSpeed);
+  
+    Serial.print(leftSpeed);
+    Serial.print(" ");
+    Serial.println(rightSpeed);
+  
+    setMotorSpeed(rightSpeed, leftSpeed);
+  }
+  //delay(50);//REVISAR QUE NO AFECTE EL PWM
+}
+void setMotorSpeed(int leftSpeed, int rightSpeed) {
+  // Left motors
+  if (leftSpeed > 0) { // Go forward
+    FL_fwd(leftSpeed);
+    RL_fwd(leftSpeed);
+  } else { // Go backwards
+    leftSpeed = -leftSpeed; // Turn speed positive for pwm
+    FL_bck(leftSpeed);
+    RL_bck(leftSpeed);
+  }
+  // Right motors
+  if (rightSpeed > 0) { // Go forward
+    FR_fwd(rightSpeed);
+    RR_fwd(rightSpeed);
+  } else { // Go backwards
+    FR_bck(rightSpeed);
+    RR_bck(rightSpeed);
+    rightSpeed = -rightSpeed; // Turn speed positive for pwm
   }
 }
