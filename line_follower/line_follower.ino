@@ -1,6 +1,4 @@
-#define LONG_DELAY_TIME 70 
-#define DELAY_TIME 40
-#define SOUND_SPEED 0.0343
+#define SOUND_SPEED 0.0343 //Speed of sound in cm/us
 #define DISTANCE_FRONT 10 //Distance before stopping (in cm)
 #define DISTANCE_SIDE 10 //Distance from objects to sides (in cm)
          
@@ -17,7 +15,7 @@
 #define leftMotorDirPin1B 26
 #define leftMotorDirPin2B 28 
 
-#define sensor1   A4 // IR Sensors
+#define sensor1   A4 //Pins for IR Sensors 
 #define sensor2   A3 
 #define sensor3   A2 
 #define sensor4   A1 
@@ -31,22 +29,23 @@
 #define echoPinR 19 
 
 #define buzzerPin 40 
-#define ledR 1
-#define ledL 1
+#define ledR 42 
+#define ledL 44 
+#define buttonPin 46
 
-float durationF=0.0; // Duration measured by front sensor
-bool objectDetectedF = false; // Front object detection flag
-float durationL=0.0; // Duration measured by left sensor
-bool objectDetectedL = false; // Left object detection flag
-float durationR=0.0; // Duration measured by right sensor
-bool objectDetectedR = false; // Right object detection flag
+float durationF=0.0; //Duration measured by front sensor
+bool objectDetectedF = false; //Front object detection flag
+float durationL=0.0; //Duration measured by left sensor
+bool objectDetectedL = false; //Left object detection flag
+float durationR=0.0; //Duration measured by right sensor
+bool objectDetectedR = false; //Right object detection flag
 
 float Kp = 220.0; //Control parameters and variables
 float Ki = 0.3; 
 float Kd = 100.0; 
-float lastError = 0.0;
-float integral = 0.0;
-int baseSpeed = 120;
+float lastError = 0.0; //For derivative calculation
+float integral = 0.0; //For integral calculation
+int baseSpeed = 120; //Speed constrains
 int maxSpeed = 230;
 
 //Motor control functions
@@ -107,9 +106,29 @@ void stop_bot(){
   digitalWrite(leftMotorDirPin2,LOW); 
   delay(40);
 }
+void end_routine(){ //Final routine after detecting object in the front
+  delay(500); //Delay after stopping the bot
+  //Movement to the right//REVISAR 
+  FR_bck(100);
+  FL_fwd(100);
+  RR_fwd(100);
+  RL_bck(100);
 
+  delay(1000); //Move to the left for 1s
+
+  //Right spin
+  FR_fwd(100);
+  FL_bck(100);
+  RR_fwd(100);
+  RL_bck(100);
+
+  delay(1000); //Spin for 1s
+
+  stop_bot();
+}
 //Pins initialize
 void init_GPIO(){
+  //Motors' pins
   pinMode(rightMotorDirPin1, OUTPUT); 
   pinMode(rightMotorDirPin2, OUTPUT); 
   pinMode(speedPinL, OUTPUT);  
@@ -122,21 +141,22 @@ void init_GPIO(){
   pinMode(leftMotorDirPin1B, OUTPUT);
   pinMode(leftMotorDirPin2B, OUTPUT); 
   pinMode(speedPinRB, OUTPUT);
-  
+  //IR sensors' pins
   pinMode(sensor1, INPUT);
   pinMode(sensor2, INPUT);
   pinMode(sensor3, INPUT);
   pinMode(sensor4, INPUT);
   pinMode(sensor5, INPUT);
-  
+  //Ultrasonic sensors' pins
   pinMode(triggerPinF, OUTPUT);
   pinMode(echoPinF, INPUT);
   pinMode(triggerPinL, OUTPUT);
   pinMode(echoPinL, INPUT);
   pinMode(triggerPinR, OUTPUT);
   pinMode(echoPinR, INPUT);
-
+  //Buzzer, button and leds' pins
   pinMode(buzzerPin,OUTPUT);
+  pinMode(buttonPin,INPUT);
   pinMode(ledR,OUTPUT);
   pinMode(ledL,OUTPUT);
   
@@ -151,89 +171,89 @@ void control(){
   int s3 = !digitalRead(sensor4);
   int s4 = !digitalRead(sensor5);
   
-  if( s0==1 && s1==1 && s2==1 && s3==1 && s4==1){ //Cross-line handle
+  if( s0==1 && s1==1 && s2==1 && s3==1 && s4==1){ //Cross-line handle, go forward
     RL_fwd(baseSpeed);
     RR_fwd(baseSpeed);
     FR_fwd(baseSpeed);
     FL_fwd(baseSpeed); 
   }
-  else if( s0==0 && s1==0 && s2==0 && s3==0 && s4==0){ //No line handle
+  else if( s0==0 && s1==0 && s2==0 && s3==0 && s4==0){ //No line handle, go backwards
     RL_bck(baseSpeed);
     RR_bck(baseSpeed);
     FR_bck(baseSpeed);
     FL_bck(baseSpeed); 
   }
-  else{
+  else{ //Error and speed calculation for tracing the line
     float error = (s0*-4 + s1*-2 + s2*0 + s3*2 + s4*4); //Error calculation
     integral += error;
     float derivative = error - lastError;
     float output = Kp * error + Ki * integral + Kd * derivative; //Speed calculation
     lastError = error;
-    int leftSpeed = constrain(baseSpeed - output, 0, maxSpeed);
+    int leftSpeed = constrain(baseSpeed - output, 0, maxSpeed); //Constrains for speed
     int rightSpeed = constrain(baseSpeed + output, 0, maxSpeed);
     
     setMotorSpeed(rightSpeed, leftSpeed);
   }
 }
-void setMotorSpeed(int rightSpeed, int leftSpeed) {
-  if (rightSpeed > 0) { //Go forward
+void setMotorSpeed(int rightSpeed, int leftSpeed) {//Asign speed calculations to right and left motors
+  if (rightSpeed > 0) { //Go forward if speed is positive
     FL_fwd(rightSpeed);
     RL_fwd(rightSpeed);
-  } else { // Go backwards
-    rightSpeed = -rightSpeed; //Turn speed positive 
+  } else { //Go backwards if speed is negative
+    rightSpeed = -rightSpeed; //Turn speed positive for pwm
     FL_bck(rightSpeed);
     RL_bck(rightSpeed);
   }
-  if (leftSpeed > 0) { //Go forward
+  if (leftSpeed > 0) { //Go forward if speed is positive
     FR_fwd(leftSpeed);
     RR_fwd(leftSpeed);
-  } else { // Go backwards
+  } else { //Go backwards if speed is negative
     FR_bck(leftSpeed);
     RR_bck(leftSpeed);
-    leftSpeed = -leftSpeed; //Turn speed positive 
+    leftSpeed = -leftSpeed; //Turn speed positive for pwm
   }
 }
 
 //Ultrasonic sensors interrupt functions
-void echoFront() { 
-  if (digitalRead(echoPinF) == HIGH) {
-    durationF = micros();
+void echoFront() { //Executed each time the echo pin receives a pulse
+  if (digitalRead(echoPinF) == HIGH) { //The return of the ultrasonic signal was detected
+    durationF = micros(); //Save current time in microseconds
   } 
-  else {
-    durationF = micros() - durationF;
-    float distance = durationF * SOUND_SPEED / 2;
-    if (distance < DISTANCE_FRONT) {
-      objectDetectedF = true;
+  else { //Calculation of the time it took for the signal to return
+    durationF = micros() - durationF; //Time between initial time and current time
+    float distance = durationF * SOUND_SPEED / 2; //Distance calculation
+    if (distance < DISTANCE_FRONT) { //Comparisson between the calculated distance and the set distance
+      objectDetectedF = true; //Rises a flag if the object's distance from the sensor is less than the ser distance
     } 
     else {
       objectDetectedF = false;
     }
   }
 }
-void echoLeft() { 
-  if (digitalRead(echoPinL) == HIGH) {
-    durationL = micros();
+void echoLeft() { //Executed each time the echo pin receives a pulse
+  if (digitalRead(echoPinL) == HIGH) { //The return of the ultrasonic signal was detected
+    durationL = micros(); //Save current time in microseconds
   } 
-  else {
-    durationL = micros() - durationL;
-    float distance = durationL * SOUND_SPEED / 2;
-    if (distance < DISTANCE_SIDE) {
-      objectDetectedL = true;
+  else { //Calculation of the time it took for the signal to return
+    durationL = micros() - durationL; //Time between initial time and current time
+    float distance = durationL * SOUND_SPEED / 2;  //Distance calculation
+    if (distance < DISTANCE_SIDE) { //Comparisson between the calculated distance and the set distance
+      objectDetectedL = true; //Rises a flag if the object's distance from the sensor is less than the ser distance
     } 
     else {
       objectDetectedL = false;
     }
   }
 }
-void echoRight() { 
-  if (digitalRead(echoPinR) == HIGH) {
-    durationR = micros();
+void echoRight() { //Executed each time the echo pin receives a pulse
+  if (digitalRead(echoPinR) == HIGH) { //The return of the ultrasonic signal was detected
+    durationR = micros(); //Save current time in microseconds
   } 
-  else {
-    durationR = micros() - durationR;
-    float distance = durationR * SOUND_SPEED / 2;
-    if (distance < DISTANCE_SIDE) {
-      objectDetectedR = true;
+  else { //Calculation of the time it took for the signal to return
+    durationR = micros() - durationR; //Time between initial time and current time
+    float distance = durationR * SOUND_SPEED / 2; //Distance calculation
+    if (distance < DISTANCE_SIDE) { //Comparisson between the calculated distance and the set distance
+      objectDetectedR = true; //Rises a flag if the object's distance from the sensor is less than the ser distance
     } 
     else {
       objectDetectedR = false;
@@ -243,9 +263,15 @@ void echoRight() {
 
 void setup(){
   init_GPIO();
-  attachInterrupt(digitalPinToInterrupt(echoPinF), echoFront, CHANGE); //Interrupt setup for front ultrasonic sensor
-  attachInterrupt(digitalPinToInterrupt(echoPinL), echoLeft, CHANGE); //Interrupt setup for left ultrasonic sensor
-  attachInterrupt(digitalPinToInterrupt(echoPinR), echoRight, CHANGE); //Interrupt setup for right ultrasonic sensor
+  attachInterrupt(digitalPinToInterrupt(echoPinF), echoFront, CHANGE); //Interrupt setup for front ultrasonic sensor, triggered whenever the state of the pin changes
+  attachInterrupt(digitalPinToInterrupt(echoPinL), echoLeft, CHANGE); //Interrupt setup for left ultrasonic sensor, triggered whenever the state of the pin changes
+  attachInterrupt(digitalPinToInterrupt(echoPinR), echoRight, CHANGE); //Interrupt setup for right ultrasonic sensor, triggered whenever the state of the pin changes
+  //Wait until button is pressed
+  int buttonState=digitalRead(buttonPin);
+  while(buttonState==LOW){
+    buttonState=digitalRead(buttonPin);
+    delay(10);
+  }
 }
 
 void loop(){
@@ -270,26 +296,32 @@ void loop(){
   delayMicroseconds(10);
   digitalWrite(triggerPinR, LOW);
   delayMicroseconds(50);
- 
+  
   // Check object detection flags
-  if (!objectDetectedF) {
-    if(objectDetectedR){
+  if (!objectDetectedF) { //No objects detected in the front of the bot
+    if(objectDetectedR){ //Left object detection
       tone(buzzerPin, 1800);
       digitalWrite(ledR,HIGH);
     }
-    else if(objectDetectedL){
+    else if(objectDetectedL){ //Left object detection
       tone(buzzerPin, 1800); 
       digitalWrite(ledL,HIGH);
     }
-    else{
+    else{ //No objects detected in the sides of the bot
       digitalWrite(ledR,LOW);
       digitalWrite(ledL,LOW);
       noTone(buzzerPin);
     }
-    control(); 
+    control(); //Tracing the line with PID control
   } 
-  else {
+  else { //Front object detection
     stop_bot();
+    end_routine();
+    int buttonState=digitalRead(buttonPin);
+    while(buttonState==LOW){
+      buttonState=digitalRead(buttonPin);
+      delay(10);
+    }
   }
   delay(40);
 }
