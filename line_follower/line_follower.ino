@@ -1,6 +1,6 @@
 #define SOUND_SPEED 0.0343 //Speed of sound in cm/us
-#define DISTANCE_FRONT 10 //Distance before stopping (in cm)
-#define DISTANCE_SIDE 10 //Distance from objects to sides (in cm)
+#define DISTANCE_FRONT 6 //Distance before stopping (in cm)
+#define DISTANCE_SIDE 12 //Distance from objects to sides (in cm)
          
 #define speedPinR 11 //Front Right motor pins
 #define rightMotorDirPin1  5 
@@ -22,16 +22,16 @@
 #define sensor5   A0 
 
 #define triggerPinF 34 //Front ultrasonic sensor pins
-#define echoPinF 21 
-#define triggerPinL 10 //Left ultrasonic sensor pins
+#define echoPinF 21   
+#define triggerPinL 40 //Left ultrasonic sensor pins
 #define echoPinL 20 
-#define triggerPinR 11 //Right ultrasonic sensor pins 
+#define triggerPinR 38 //Right ultrasonic sensor pins 
 #define echoPinR 19 
 
-#define buzzerPin 40 
-#define ledR 42 
-#define ledL 44 
-#define buttonPin 46
+#define buzzerPin 42 
+#define ledR 46 
+#define ledL 48 
+#define buttonPin 44
 
 float durationF=0.0; //Duration measured by front sensor
 bool objectDetectedF = false; //Front object detection flag
@@ -45,8 +45,9 @@ float Ki = 0.3;
 float Kd = 100.0; 
 float lastError = 0.0; //For derivative calculation
 float integral = 0.0; //For integral calculation
-int baseSpeed = 120; //Speed constrains
-int maxSpeed = 230;
+int minSpeed = 50; //Speed constrains
+int baseSpeed = 100;
+int maxSpeed = 150;
 
 //Motor control functions
 void FR_fwd(int speed){  //Front Right wheel forward turn
@@ -108,7 +109,7 @@ void stop_bot(){
 }
 void end_routine(){ //Final routine after detecting object in the front
   delay(500); //Delay after stopping the bot
-  //Movement to the right//REVISAR 
+  //Movement to the right
   FR_bck(100);
   FL_fwd(100);
   RR_fwd(100);
@@ -189,8 +190,8 @@ void control(){
     float derivative = error - lastError;
     float output = Kp * error + Ki * integral + Kd * derivative; //Speed calculation
     lastError = error;
-    int leftSpeed = constrain(baseSpeed - output, 0, maxSpeed); //Constrains for speed
-    int rightSpeed = constrain(baseSpeed + output, 0, maxSpeed);
+    int leftSpeed = constrain(minSpeed - output, 0, maxSpeed); //Constrains for speed
+    int rightSpeed = constrain(minSpeed + output, 0, maxSpeed);
     
     setMotorSpeed(rightSpeed, leftSpeed);
   }
@@ -251,7 +252,7 @@ void echoRight() { //Executed each time the echo pin receives a pulse
   } 
   else { //Calculation of the time it took for the signal to return
     durationR = micros() - durationR; //Time between initial time and current time
-    float distance = durationR * SOUND_SPEED / 2; //Distance calculation
+    float distance = durationR * SOUND_SPEED / 2; //Distance calculation    
     if (distance < DISTANCE_SIDE) { //Comparisson between the calculated distance and the set distance
       objectDetectedR = true; //Rises a flag if the object's distance from the sensor is less than the ser distance
     } 
@@ -263,15 +264,19 @@ void echoRight() { //Executed each time the echo pin receives a pulse
 
 void setup(){
   init_GPIO();
+  
   attachInterrupt(digitalPinToInterrupt(echoPinF), echoFront, CHANGE); //Interrupt setup for front ultrasonic sensor, triggered whenever the state of the pin changes
   attachInterrupt(digitalPinToInterrupt(echoPinL), echoLeft, CHANGE); //Interrupt setup for left ultrasonic sensor, triggered whenever the state of the pin changes
   attachInterrupt(digitalPinToInterrupt(echoPinR), echoRight, CHANGE); //Interrupt setup for right ultrasonic sensor, triggered whenever the state of the pin changes
   //Wait until button is pressed
-  int buttonState=digitalRead(buttonPin);
-  while(buttonState==LOW){
-    buttonState=digitalRead(buttonPin);
-    delay(10);
-  }
+//  delay(2000);
+//  int buttonState=digitalRead(buttonPin);
+//  while(buttonState==LOW){
+//    buttonState=digitalRead(buttonPin);
+//    delay(100);
+//  }
+  Serial.begin(9600);
+  delay(15000);
 }
 
 void loop(){
@@ -299,13 +304,20 @@ void loop(){
   
   // Check object detection flags
   if (!objectDetectedF) { //No objects detected in the front of the bot
-    if(objectDetectedR){ //Left object detection
-      tone(buzzerPin, 1800);
+    if(objectDetectedR && !objectDetectedL){ //Left object detection
+      tone(buzzerPin, 500);
       digitalWrite(ledR,HIGH);
+      digitalWrite(ledL,LOW);
     }
-    else if(objectDetectedL){ //Left object detection
-      tone(buzzerPin, 1800); 
+    else if(objectDetectedL && !objectDetectedR){ //Left object detection
+      tone(buzzerPin, 500); 
       digitalWrite(ledL,HIGH);
+      digitalWrite(ledR,LOW);
+    }
+    else if(objectDetectedL && objectDetectedR){ //Left object detection
+      tone(buzzerPin, 500); 
+      digitalWrite(ledL,HIGH);
+      digitalWrite(ledR,HIGH);
     }
     else{ //No objects detected in the sides of the bot
       digitalWrite(ledR,LOW);
@@ -317,11 +329,17 @@ void loop(){
   else { //Front object detection
     stop_bot();
     end_routine();
-    int buttonState=digitalRead(buttonPin);
-    while(buttonState==LOW){
-      buttonState=digitalRead(buttonPin);
-      delay(10);
-    }
+    while(true){}
+    
+//    int buttonState=digitalRead(buttonPin);
+//    while(buttonState==LOW){
+//      buttonState=digitalRead(buttonPin);
+//      delay(10);
+//    }
   }
+  //Serial.println(distance);
   delay(40);
+//  int buttonState=digitalRead(buttonPin);
+//  Serial.println(buttonState);
+//  delay(500);
 }
